@@ -3,10 +3,10 @@ import numpy as np
 from scipy.spatial import ConvexHull,Delaunay
 from sklearn.cluster import DBSCAN
 
-#Number of Cell replication in XYZ directions
+#number of Cell replication in XYZ directions
 Replica= (3, 3, 3)
 
-#Function to read the gro file and take The metal atoms(Al,Zn), Cl, N1 of Nitrate, and OW of water and the Cell matrix.  
+#function to read the gro file and take The metal atoms(Al,Zn), Cl, N1 of Nitrate, and OW of water and the Cell matrix.  
 def LecturaGRO(archivo):
     archiu=open(archivo,'rt')
     counter=0
@@ -44,6 +44,7 @@ def LecturaGRO(archivo):
     archiu.close()
     return(np.array(Metales,float),np.array(Cloros,float),np.array(Nitratos,float),np.array(Aguas,float),Mcell)
 
+#function to translate a matrix by a vector 
 def MoveUnit(Matriz_xyz,Vector):
     Traslacion=np.eye(4,4)
     Traslacion[3,0:-1]=Vector
@@ -51,45 +52,12 @@ def MoveUnit(Matriz_xyz,Vector):
     NuevasCordenadas=np.dot(Matriz_xyz2,Traslacion)[:,0:-1]
     return(NuevasCordenadas)
 
-def Filtro(datos,filtro):
-    datos_Metal=[]
-    for i in range(len(datos)):
-        existe=[elemento for elemento in filtro if(elemento in datos[i][1].strip())]
-        if bool(existe):
-            datos_Metal.append(datos[i])
-    return(datos_Metal)
-
-def layers(matriz_conexiones,lineas_layer,inicio):
-    lista_id = []
-    fin = 0
-    lista_id.append(inicio)
-    counter = 0
-    while fin == 0:
-        lista = np.hstack(np.where(matriz_conexiones[inicio] == 1)).tolist()
-        for x in lista:
-            if x not in lista_id:
-                lista_id.append(x)
-        counter += 1
-        if counter == len(lista_id):
-            fin = 1
-        else:
-            inicio = lista_id[counter]
-#    print(counter)
-    lista = []
-    for i in range(len(lista_id)):
-        #    lista.append(lineas_layer[i])
-        lista.append(lineas_layer[lista_id[i]]-1)
-#    print(*lista)
-    return(lista_id,lista)
-
+#function to calculate a distance of a matrix from an atom
 def distancia(Atomo,Matriz):
     M_distancias = np.linalg.norm(Matriz - Atomo,axis=1)
     return(M_distancias)
 
-def Centro(Matriz):
-    centrado=filter(lambda x: Matriz[x] < 7.0, range(len(Matriz)))
-    return(list(centrado))
-
+#function to replicate a matrix with a cell units by a Replica vector
 def Multiplo(Mxyz,Mcell):
     MultiploXYZ = []
     counter = 1
@@ -102,31 +70,28 @@ def Multiplo(Mxyz,Mcell):
                 counter += 1
     return(np.array(MultiploXYZ, float))
 
-def Reduccion(Matriz,lista):
-    matriz=map(lambda x: Matriz[x],lista)
-    return list(matriz)
-
 ########################################################################################################################
 ########################################################################################################################
 
-#leer archivo gro
-#archivo='md_2.gro'
+#select the gro file
 archivo = sys.argv[1]
+#extract the information from gro file, Metals, Clorhides, Nitrates, Water, and the unit cell
 Metales,Cloros,Nitratos,Aguas,Mcell=LecturaGRO(archivo)
 
-# duplicar celdas por 3
+#replicate the metals by 3x3x3 unit cells
 MultiploMetales=np.concatenate(Multiplo(Metales,Mcell))
-# Buscar centro de los metales
+#locate the center of metals
 centro=np.array(MultiploMetales.mean(axis=0),float)
-# Cortar metales a un radio del 10nm del centro
+#Select the metals around 10nm of center
 MetalesCentro=[]
 distanciaCentro = distancia(centro, MultiploMetales)
 while distanciaCentro.min() < 10.0:
     MetalesCentro.append(MultiploMetales[distanciaCentro.argmin()])
     distanciaCentro[distanciaCentro.argmin()] = 1000
 MetalesCentro=np.array(MetalesCentro[:])
-# Localizar Capas y en centro del cluster
+#locate the layers of cluster by DBSCAN with a distance of 0.35nm
 sc=DBSCAN(eps=0.35,min_samples=5).fit(MetalesCentro)
+#select the layers bigger than 250 metals
 Capas=[]
 for i in range(5):
     capa=np.array(MetalesCentro[sc.labels_ == i],float)
@@ -134,12 +99,13 @@ for i in range(5):
         Capas.append(capa)
 MetalesCentroXYZ=np.concatenate(Capas[:])
 
-#Centro de las capas de Metales
+#locate the center of metal layers
 centro=MetalesCentroXYZ.mean(axis=0)
+#maximum distance of metal from the center
 distanciasMaxMetalesCentro=distancia(centro,MetalesCentroXYZ).max()
-
+#clean the memory
 del MultiploMetales,MetalesCentro
-# Clasificar atomos de Cloro
+#select the clorhide atoms from the center to 1nm outside the cluster
 AtomosCentro=[]
 MultiploXYZ = np.concatenate(Multiplo(Cloros, Mcell))
 distanciaCentro = distancia(centro, MultiploXYZ)
@@ -147,7 +113,7 @@ while distanciaCentro.min() < distanciasMaxMetalesCentro + 1.0:
     AtomosCentro.append(MultiploXYZ[distanciaCentro.argmin()])
     distanciaCentro[distanciaCentro.argmin()] = 1000
 Cloros=np.array(AtomosCentro[:])
-# Clasificar atomos de N1, centro del NOO
+#select the N1 atoms (N atom of nitrite) from the center to 1nm outside the cluster
 AtomosCentro=[]
 MultiploXYZ = np.concatenate(Multiplo(Nitratos, Mcell))
 distanciaCentro = distancia(centro, MultiploXYZ)
@@ -155,7 +121,7 @@ while distanciaCentro.min() < distanciasMaxMetalesCentro + 1.0:
     AtomosCentro.append(MultiploXYZ[distanciaCentro.argmin()])
     distanciaCentro[distanciaCentro.argmin()] = 1000
 Nitratos=np.array(AtomosCentro[:])
-# Clasificar atomos de OW, centro de la molecula de agua
+#select the OW atoms (O atom of water molecules) from the center to 1nm outside the cluster
 AtomosCentro=[]
 MultiploXYZ = np.concatenate(Multiplo(Aguas, Mcell))
 distanciaCentro = distancia(centro, MultiploXYZ)
@@ -163,18 +129,17 @@ while distanciaCentro.min() < distanciasMaxMetalesCentro + 1.0:
     AtomosCentro.append(MultiploXYZ[distanciaCentro.argmin()])
     distanciaCentro[distanciaCentro.argmin()] = 1000
 Aguas=np.array(AtomosCentro[:])
-
+#clean the memory
 del AtomosCentro,MultiploXYZ
 
-#Descripcion de los bordes de las capas de metales
+#location of the hull for the Metals cluster
 hull=ConvexHull(MetalesCentroXYZ,qhull_options='QJ')
+#calculate the volume of cluster
 MaxVol=hull.volume
-#print('Volumen maximo : ',MaxVol)
-#
-#Busqueda entre capas de los Cloros, Nitratos y Aguas
+#locate the Clorhide, Nitrates, and Waters inside the cluster
 hull=Delaunay(hull.points)
 counter_CL=len(list(filter(lambda x: x > 0,hull.find_simplex(Cloros))))
 counter_N1=len(list(filter(lambda x: x > 0,hull.find_simplex(Nitratos))))
 counter_OW=len(list(filter(lambda x: x > 0,hull.find_simplex(Aguas))))
-
-print(archivo,'  ','Volumen maximo: ',MaxVol,'  Total Numbers of Clorine inside: ',counter_CL,'  Total Nitrates inside: ',counter_N1,'  Total Aguas inside; ',counter_OW)
+#print the Volume, the number of Chloride, Nitrates, and Waters inside the cluster
+print(archivo,'  ','Volume max.: ',MaxVol,'  # Chloride inside: ',counter_CL,'  # Nitrates inside: ',counter_N1,'  # Waters inside; ',counter_OW)
