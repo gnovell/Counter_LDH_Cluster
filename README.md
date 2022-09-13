@@ -1,4 +1,4 @@
-This code is used to count the atoms of ions inside layers of LDH from the molecular dynamics simulation with GROMACS and the frame saved in a extension of *.gro.
-.
+This code is used to count the atoms of ions inside layers of LDH from the molecular dynamics simulation with GROMACS and the frame saved in a extension of *.gro. The SimplyCounterAtoms is a code that reads the gro file and search the metals atoms of LDH cluster with scikit-learn modules. The Scipy package proportion the Hull of the LDH layers and find the atoms inside the hull. The code return the Volume of hull and the number of atoms inside it (Chlorine, water and Nitrates/MBT).
+The CounterAtoms.py do the same but the estructure of gro file is expanded in the 3 dimension (3x3x3 unit cells) and locate the cluster in the center to cut a sample of 10 nm from the center. This reduce the possibility of errors by the atoms that crosses the pbc box during the molecular dynamic simulation.
 
 This code was developed in the frame of project DataCor (POCI-01-0145-FEDER-030256 and PTDC/QUI-QFI/30256/2017, https://datacoproject.wixsite.com/datacor)
